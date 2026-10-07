@@ -13,6 +13,9 @@ import mongoose from "mongoose";
 import { VerificationToken } from "../models/verificationToken.model.js";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
+import Event from "../models/event.model.js";
+import { registerEvent } from "./register.controller.js";
+import EventRegistration from "../models/register.model.js";
 
 
 const stripe = null;
@@ -26,7 +29,6 @@ const generateAccountLink = async (accountId) => {
     });
     return accountLink.url;
 };
-
 
 const registerUser = asyncHandler(async (req, res) => {
     const { email, password, name } = req.body;
@@ -388,26 +390,30 @@ const userLikedEvents = asyncHandler(async (req, res) => {
         .json(new ApiResponse(200, likes, "Events Liked by user"));
 });
 
+
 const userHistory = asyncHandler(async (req, res) => {
-    const user = await User.findById(req.user._id)
-        .populate({
-            path: "history.organizedEvent",
-            select: "title startDateTime hosts image",
-        })
-        .populate({
-            path: "history.attendedEvent",
-            select: "title startDateTime image hosts",
-            populate: {
-                path: "hosts",
-                select: "name avatar",
+    const organized = await Event.find({
+        organizerId: req.user._id,
+        startDateTime: { $lt: new Date() },
+    })
+        .select("title image location status startDateTime")
+        .sort({ startDateTime: -1 });
+
+    return res.status(200).json(
+        new ApiResponse(
+            200,
+            {
+                history: {
+                    organized,
+                },
             },
-        }); 
-    return res.status(200).json(new ApiResponse(200, user, "History fetched successfully"));
+            "History fetched successfully"
+        )
+    );
 });
 
 const onboardingUser = asyncHandler(async (req, res) => {
     const { interests = [], location, preferredCategories } = req.body;
-    console.log(req.body)
 
     const user = await User.findById(req.user._id).select(
         "onboardingCompleted"
